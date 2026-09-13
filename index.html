@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A transparent local demo of intent extraction, provider retrieval, and explainable ranking." />
+    <meta name="theme-color" content="#f5f2ea" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/styles.css" />
+    <title>AI Provider Match</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="#" aria-label="AI Provider Match home">
+        <span class="brand-mark" aria-hidden="true">AP</span>
+        <span>AI Provider Match</span>
+      </a>
+      <div class="header-actions">
+        <span class="mode-badge"><span class="status-dot"></span>Local mock mode</span>
+        <button class="text-button" id="aboutButton" type="button">How it works</button>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section class="hero" aria-labelledby="hero-title">
+        <div>
+          <p class="eyebrow">Explainable local matching</p>
+          <h1 id="hero-title">Describe the problem.<br />See why each provider fits.</h1>
+          <p class="hero-copy">A focused demo of structured intent extraction, local retrieval, and evidence-based ranking for home services.</p>
+        </div>
+        <div class="hero-note">
+          <span class="hero-note-index">01</span>
+          <p>Your request stays in this browser. The provider directory and quality signals are synthetic seed data built for this demo.</p>
+        </div>
+      </section>
+
+      <nav class="view-tabs" aria-label="Demo views">
+        <button class="view-tab is-active" id="matchTab" type="button" aria-selected="true">Provider match</button>
+        <button class="view-tab" id="evaluationTab" type="button" aria-selected="false">Evaluation</button>
+      </nav>
+
+      <section id="matchView" class="view-panel">
+        <div class="workspace-grid">
+          <section class="request-panel" aria-labelledby="request-title">
+            <div class="section-heading">
+              <div>
+                <p class="step-label">Step 1</p>
+                <h2 id="request-title">What needs attention?</h2>
+              </div>
+              <span class="private-label">Private by default</span>
+            </div>
+
+            <form id="matchForm">
+              <label for="requestInput">Describe the issue in your own words</label>
+              <textarea id="requestInput" name="request" rows="6" required maxlength="500">My kitchen sink is leaking underneath the cabinet and getting worse. I need someone today if possible.</textarea>
+              <div class="input-meta"><span id="characterCount">105 / 500</span><span>Plain language works best</span></div>
+
+              <div class="form-row">
+                <div class="field-group">
+                  <label for="zipInput">Service ZIP</label>
+                  <select id="zipInput" name="zip">
+                    <option value="66502">66502 · Manhattan</option>
+                    <option value="66503">66503 · West Manhattan</option>
+                    <option value="66506">66506 · Campus area</option>
+                  </select>
+                </div>
+                <button class="primary-button" id="matchButton" type="submit">
+                  <span>Find matching providers</span>
+                  <span aria-hidden="true">→</span>
+                </button>
+              </div>
+            </form>
+
+            <div class="examples" aria-labelledby="examples-label">
+              <p id="examples-label">Try an example</p>
+              <div id="exampleButtons" class="example-buttons"></div>
+            </div>
+          </section>
+
+          <aside class="pipeline-panel" aria-labelledby="pipeline-title">
+            <div class="section-heading compact">
+              <div>
+                <p class="step-label">Live pipeline</p>
+                <h2 id="pipeline-title">What the system is doing</h2>
+              </div>
+            </div>
+            <ol class="pipeline-list" id="pipelineList">
+              <li class="pipeline-step is-complete" data-stage="understand">
+                <span class="stage-marker">1</span>
+                <div><strong>Understand</strong><span>Extract structured intent</span></div>
+                <span class="stage-status">Ready</span>
+              </li>
+              <li class="pipeline-step" data-stage="retrieve">
+                <span class="stage-marker">2</span>
+                <div><strong>Retrieve</strong><span>Find eligible local providers</span></div>
+                <span class="stage-status">Waiting</span>
+              </li>
+              <li class="pipeline-step" data-stage="rank">
+                <span class="stage-marker">3</span>
+                <div><strong>Rank</strong><span>Score fit across six signals</span></div>
+                <span class="stage-status">Waiting</span>
+              </li>
+              <li class="pipeline-step" data-stage="explain">
+                <span class="stage-marker">4</span>
+                <div><strong>Explain</strong><span>Surface recommendation evidence</span></div>
+                <span class="stage-status">Waiting</span>
+              </li>
+            </ol>
+            <div class="pipeline-footnote">
+              <span class="mono">MODE</span>
+              <span>Deterministic local inference</span>
+            </div>
+          </aside>
+        </div>
+
+        <div id="loadingState" class="loading-state" hidden aria-live="polite">
+          <span class="loader" aria-hidden="true"></span>
+          <div><strong id="loadingTitle">Reading the request</strong><span id="loadingDetail">Turning natural language into service requirements…</span></div>
+        </div>
+
+        <section id="resultsSection" class="results-section" aria-labelledby="results-title" hidden>
+          <div class="intent-panel">
+            <div class="section-heading compact">
+              <div>
+                <p class="step-label">Step 2 · Extracted intent</p>
+                <h2>What we understood</h2>
+              </div>
+              <span id="confidenceLabel" class="confidence-label"></span>
+            </div>
+            <div id="intentGrid" class="intent-grid"></div>
+            <div id="safetyNotice" class="safety-notice" hidden></div>
+          </div>
+
+          <div class="results-heading">
+            <div>
+              <p class="step-label">Step 3 · Ranked results</p>
+              <h2 id="results-title">Best matches for this request</h2>
+            </div>
+            <p id="retrievalSummary" class="retrieval-summary"></p>
+          </div>
+          <div id="providerResults" class="provider-results"></div>
+        </section>
+      </section>
+
+      <section id="evaluationView" class="view-panel" hidden aria-labelledby="evaluation-title">
+        <div class="evaluation-intro">
+          <div>
+            <p class="eyebrow">Small, inspectable test set</p>
+            <h2 id="evaluation-title">Does the matcher retrieve the right provider?</h2>
+          </div>
+          <p>Four labeled scenarios run through the same extraction and ranking code as the live demo. Metrics are calculated in the browser, not hard-coded.</p>
+        </div>
+        <div id="metricGrid" class="metric-grid"></div>
+        <div class="evaluation-table-wrap">
+          <table>
+            <thead>
+              <tr><th>Case</th><th>Expected intent</th><th>Top match</th><th>Recall@3</th><th>NDCG@3</th><th>Status</th></tr>
+            </thead>
+            <tbody id="evaluationRows"></tbody>
+          </table>
+        </div>
+        <div class="architecture-panel">
+          <div>
+            <p class="step-label">Approachable architecture</p>
+            <h3>One transparent pipeline</h3>
+          </div>
+          <ol class="architecture-flow">
+            <li><span>01</span><strong>Intent</strong><small>rules → schema</small></li>
+            <li><span>02</span><strong>Retrieval</strong><small>trade + service area</small></li>
+            <li><span>03</span><strong>Ranking</strong><small>six weighted signals</small></li>
+            <li><span>04</span><strong>Explanation</strong><small>top evidence</small></li>
+          </ol>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>AI Provider Match · NewsBreak Nearby AI Engineering Track demo</p>
+      <p>All provider profiles and performance signals are fictional demo data.</p>
+    </footer>
+
+    <dialog id="aboutDialog">
+      <div class="dialog-heading">
+        <div><p class="step-label">System note</p><h2>How this demo works</h2></div>
+        <button id="closeDialog" class="icon-button" type="button" aria-label="Close">×</button>
+      </div>
+      <p>The app converts a natural-language service request into a small intent schema, retrieves providers by trade and service area, then ranks them using category fit, specialty overlap, availability, location, demo quality, and distance.</p>
+      <p>Mock mode is intentional: it makes every decision reproducible and keeps private requests in the browser. A production version could replace the extractor and data source behind the same module boundaries.</p>
+    </dialog>
+
+    <script type="module" src="/src/app.js"></script>
+  </body>
+</html>
