@@ -47,6 +47,7 @@ export function runEvaluation() {
     const ndcg = dcg(relevances) / (dcg(ideal) || 1);
     const firstRelevantIndex = topThree.findIndex((provider) => testCase.relevant.includes(provider.id));
     const reciprocalRank = firstRelevantIndex === -1 ? 0 : 1 / (firstRelevantIndex + 1);
+    const contextHit = result.retrieval.chunks.some((chunk) => testCase.relevant.includes(chunk.providerId));
     return {
       ...testCase,
       predictedCategory: result.intent.category,
@@ -54,6 +55,8 @@ export function runEvaluation() {
       recall,
       ndcg,
       reciprocalRank,
+      contextHit,
+      topEvidence: result.retrieval.chunks[0]?.providerName ?? "None",
       passed: result.intent.category === testCase.expectedCategory && hits > 0
     };
   });
@@ -65,6 +68,7 @@ export function runEvaluation() {
       recallAt3: average("recall"),
       ndcgAt3: average("ndcg"),
       mrr: average("reciprocalRank"),
+      contextHitRate: rows.filter((row) => row.contextHit).length / rows.length,
       intentAccuracy: rows.filter((row) => row.predictedCategory === row.expectedCategory).length / rows.length
     }
   };
