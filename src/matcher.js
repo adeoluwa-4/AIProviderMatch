@@ -50,29 +50,74 @@ export function extractIntent(description, zip = "66502") {
   };
 }
 
-export function retrieveProviders(intent, providerList) {
-  const categoryMatches = providerList.filter((provider) => provider.category === intent.category);
-  const adjacentMatches = providerList.filter((provider) => {
-    const skillMatch = intent.specialties.some((skill) => provider.specialties.includes(skill));
-    return provider.category !== intent.category && skillMatch;
+export function retrieveProviders(intent, providerList, description = "") {
+  const chunks = buildProviderChunks(providerList);
+  const index = buildVectorIndex(chunks);
+  const eligibleProviderIds = new Set(
+    providerList
+      .filter((provider) => provider.serviceAreas.includes(intent.zip))
+      .map((provider) => provider.id)
+  );
+  const eligibleIndex = index.filter((chunk) => (
+    eligibleProviderIds.has(chunk.providerId) && chunk.type === "services"
+  ));
+  const query = [description, intent.category, intent.jobType, ...intent.specialties].join(" ");
+  const context = retrieveContext(query, eligibleIndex.length ? eligibleIndex : index, 10);
+  const bestContextByProvider = new Map();
+
+  for (const chunk of context) {
+    const current = bestContextByProvider.get(chunk.providerId);
+    if (!current || chunk.similarity > current.similarity) bestContextByProvider.set(chunk.providerId, chunk);
+  }
+
+  const vectorMatches = new Set(context.slice(0, 8).map((chunk) => chunk.providerId));
+  let candidates = providerList.filter((provider) => {
+    const servesArea = provider.serviceAreas.includes(intent.zip);
+    return servesArea && (provider.category === intent.category || vectorMatches.has(provider.id));
   });
-  const candidates = [...categoryMatches, ...adjacentMatches];
-  return candidates.length ? candidates : providerList.filter((provider) => provider.category === "Handyman");
+
+  if (!candidates.length) {
+    candidates = providerList.filter((provider) => provider.category === intent.category);
+  }
+  if (!candidates.length) candidates = providerList.filter((provider) => provider.category === "Handyman");
+
+  candidates = candidates
+    .map((provider) => ({
+      ...provider,
+      rag: bestContextByProvider.get(provider.id) ?? {
+        id: `${provider.id}:fallback`,
+        providerId: provider.id,
+        providerName: provider.name,
+        type: "fallback",
+        text: provider.summary,
+        similarity: 0
+      }
+    }))
+    .sort((left, right) => right.rag.similarity - left.rag.similarity);
+
+  candidates.context = context;
+  candidates.indexSize = index.length;
+  candidates.searchSize = eligibleIndex.length;
+  candidates.dimensions = EMBEDDING_DIMENSIONS;
+  candidates.query = query;
+  return candidates;
 }
 
 function scoreProvider(provider, intent) {
-  const category = provider.category === intent.category ? 38 : 16;
+  const category = provider.category === intent.category ? 30 : 12;
   const overlap = intent.specialties.filter((skill) => provider.specialties.includes(skill));
-  const specialty = Math.min(24, overlap.length * 12);
-  const location = provider.serviceAreas.includes(intent.zip) ? 12 : 2;
+  const specialty = Math.min(18, overlap.length * 9);
+  const semantic = Math.round(Math.min(24, provider.rag.similarity * 42));
+  const location = provider.serviceAreas.includes(intent.zip) ? 10 : 2;
   const urgencyWindow = intent.urgency === "Urgent" ? 4 : intent.urgency === "Today" ? 8 : 30;
-  const availability = Math.max(0, 16 - Math.max(0, provider.availabilityHours - urgencyWindow) * 1.5);
-  const quality = provider.qualityScore / 10;
-  const distancePenalty = Math.min(8, provider.distanceMiles * 0.32);
-  const raw = category + specialty + location + availability + quality - distancePenalty;
+  const availability = Math.max(0, 14 - Math.max(0, provider.availabilityHours - urgencyWindow) * 1.3);
+  const quality = provider.qualityScore / 11;
+  const distancePenalty = Math.min(6, provider.distanceMiles * 0.28);
+  const raw = category + specialty + semantic + location + availability + quality - distancePenalty;
   const score = Math.max(0, Math.min(99, Math.round(raw)));
 
   const reasons = [];
+  if (provider.rag.similarity > 0) reasons.push(`Vector search retrieved a ${provider.rag.type} passage at ${Math.round(provider.rag.similarity * 100)}% similarity`);
   if (overlap.length) reasons.push(`Direct match for ${overlap.slice(0, 2).join(" and ")}`);
   else if (provider.category === intent.category) reasons.push(`Specializes in ${intent.category.toLowerCase()} work`);
   if (provider.serviceAreas.includes(intent.zip)) reasons.push(`Serves ${intent.zip}`);
@@ -87,6 +132,7 @@ function scoreProvider(provider, intent) {
     signals: {
       category,
       specialty,
+      semantic,
       availability: Math.round(availability),
       location,
       quality: Math.round(quality),
@@ -103,7 +149,24 @@ export function rankProviders(intent, candidates) {
 
 export function matchProviders(description, zip, providerList) {
   const intent = extractIntent(description, zip);
-  const retrieved = retrieveProviders(intent, providerList);
+  const retrieved = retrieveProviders(intent, providerList, description);
   const ranked = rankProviders(intent, retrieved);
-  return { intent, retrievedCount: retrieved.length, ranked };
+  return {
+    intent,
+    retrievedCount: retrieved.length,
+    ranked,
+    retrieval: {
+      query: retrieved.query,
+      chunks: retrieved.context.slice(0, 5),
+      indexSize: retrieved.indexSize,
+      searchSize: retrieved.searchSize,
+      dimensions: retrieved.dimensions
+    }
+  };
 }
+import {
+  EMBEDDING_DIMENSIONS,
+  buildProviderChunks,
+  buildVectorIndex,
+  retrieveContext
+} from "./embeddings.js";
