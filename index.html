@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="A transparent local demo of intent extraction, provider retrieval, and explainable ranking." />
+    <meta name="description" content="A transparent local RAG demo with intent extraction, vector retrieval, grounded ranking, and evaluation." />
     <meta name="theme-color" content="#f5f2ea" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/styles.css" />
@@ -17,7 +17,7 @@
         <span>AI Provider Match</span>
       </a>
       <div class="header-actions">
-        <span class="mode-badge"><span class="status-dot"></span>Local mock mode</span>
+        <span class="mode-badge"><span class="status-dot"></span>Local RAG · 192d</span>
         <button class="text-button" id="aboutButton" type="button">How it works</button>
       </div>
     </header>
@@ -25,9 +25,9 @@
     <main id="main-content">
       <section class="hero" aria-labelledby="hero-title">
         <div>
-          <p class="eyebrow">Explainable local matching</p>
+          <p class="eyebrow">Explainable retrieval-augmented matching</p>
           <h1 id="hero-title">Describe the problem.<br />See why each provider fits.</h1>
-          <p class="hero-copy">A focused demo of structured intent extraction, local retrieval, and evidence-based ranking for home services.</p>
+          <p class="hero-copy">A focused RAG demo that embeds a service request, retrieves provider evidence, and grounds every recommendation in the local index.</p>
         </div>
         <div class="hero-note">
           <span class="hero-note-index">01</span>
@@ -86,30 +86,35 @@
               </div>
             </div>
             <ol class="pipeline-list" id="pipelineList">
-              <li class="pipeline-step is-complete" data-stage="understand">
+              <li class="pipeline-step is-complete" data-stage="parse">
                 <span class="stage-marker">1</span>
-                <div><strong>Understand</strong><span>Extract structured intent</span></div>
+                <div><strong>Parse</strong><span>Extract structured intent</span></div>
                 <span class="stage-status">Ready</span>
               </li>
-              <li class="pipeline-step" data-stage="retrieve">
+              <li class="pipeline-step" data-stage="embed">
                 <span class="stage-marker">2</span>
-                <div><strong>Retrieve</strong><span>Find eligible local providers</span></div>
+                <div><strong>Embed</strong><span>Create a 192d query vector</span></div>
+                <span class="stage-status">Waiting</span>
+              </li>
+              <li class="pipeline-step" data-stage="retrieve">
+                <span class="stage-marker">3</span>
+                <div><strong>Retrieve</strong><span>Cosine search over provider chunks</span></div>
                 <span class="stage-status">Waiting</span>
               </li>
               <li class="pipeline-step" data-stage="rank">
-                <span class="stage-marker">3</span>
-                <div><strong>Rank</strong><span>Score fit across six signals</span></div>
+                <span class="stage-marker">4</span>
+                <div><strong>Rank</strong><span>Combine vector and business signals</span></div>
                 <span class="stage-status">Waiting</span>
               </li>
-              <li class="pipeline-step" data-stage="explain">
-                <span class="stage-marker">4</span>
-                <div><strong>Explain</strong><span>Surface recommendation evidence</span></div>
+              <li class="pipeline-step" data-stage="generate">
+                <span class="stage-marker">5</span>
+                <div><strong>Ground</strong><span>Generate evidence-backed reasons</span></div>
                 <span class="stage-status">Waiting</span>
               </li>
             </ol>
             <div class="pipeline-footnote">
               <span class="mono">MODE</span>
-              <span>Deterministic local inference</span>
+              <span>Feature-hash embeddings · no API key</span>
             </div>
           </aside>
         </div>
@@ -132,9 +137,20 @@
             <div id="safetyNotice" class="safety-notice" hidden></div>
           </div>
 
+          <section class="rag-trace-panel" aria-labelledby="rag-trace-title">
+            <div class="section-heading compact">
+              <div>
+                <p class="step-label">Step 3 · Retrieved context</p>
+                <h2 id="rag-trace-title">What the vector index found</h2>
+              </div>
+              <span id="embeddingSummary" class="confidence-label"></span>
+            </div>
+            <div id="contextResults" class="context-results"></div>
+          </section>
+
           <div class="results-heading">
             <div>
-              <p class="step-label">Step 3 · Ranked results</p>
+              <p class="step-label">Step 4 · Grounded ranking</p>
               <h2 id="results-title">Best matches for this request</h2>
             </div>
             <p id="retrievalSummary" class="retrieval-summary"></p>
@@ -149,13 +165,13 @@
             <p class="eyebrow">Small, inspectable test set</p>
             <h2 id="evaluation-title">Does the matcher retrieve the right provider?</h2>
           </div>
-          <p>Four labeled scenarios run through the same extraction and ranking code as the live demo. Metrics are calculated in the browser, not hard-coded.</p>
+          <p>Four labeled scenarios run through the same chunking, embedding, vector retrieval, and ranking code as the live demo. Metrics are calculated in the browser.</p>
         </div>
         <div id="metricGrid" class="metric-grid"></div>
         <div class="evaluation-table-wrap">
           <table>
             <thead>
-              <tr><th>Case</th><th>Expected intent</th><th>Top match</th><th>Recall@3</th><th>NDCG@3</th><th>Status</th></tr>
+              <tr><th>Case</th><th>Expected intent</th><th>Top vector evidence</th><th>Top match</th><th>Recall@3</th><th>NDCG@3</th><th>Status</th></tr>
             </thead>
             <tbody id="evaluationRows"></tbody>
           </table>
@@ -166,10 +182,11 @@
             <h3>One transparent pipeline</h3>
           </div>
           <ol class="architecture-flow">
-            <li><span>01</span><strong>Intent</strong><small>rules → schema</small></li>
-            <li><span>02</span><strong>Retrieval</strong><small>trade + service area</small></li>
-            <li><span>03</span><strong>Ranking</strong><small>six weighted signals</small></li>
-            <li><span>04</span><strong>Explanation</strong><small>top evidence</small></li>
+            <li><span>01</span><strong>Chunk</strong><small>provider knowledge</small></li>
+            <li><span>02</span><strong>Embed</strong><small>192d local vectors</small></li>
+            <li><span>03</span><strong>Retrieve</strong><small>cosine top-k</small></li>
+            <li><span>04</span><strong>Rank</strong><small>hybrid signals</small></li>
+            <li><span>05</span><strong>Ground</strong><small>cited evidence</small></li>
           </ol>
         </div>
       </section>
@@ -185,8 +202,8 @@
         <div><p class="step-label">System note</p><h2>How this demo works</h2></div>
         <button id="closeDialog" class="icon-button" type="button" aria-label="Close">×</button>
       </div>
-      <p>The app converts a natural-language service request into a small intent schema, retrieves providers by trade and service area, then ranks them using category fit, specialty overlap, availability, location, demo quality, and distance.</p>
-      <p>Mock mode is intentional: it makes every decision reproducible and keeps private requests in the browser. A production version could replace the extractor and data source behind the same module boundaries.</p>
+      <p>The app chunks each fictional provider profile, embeds those passages into a 192-dimensional local vector index, and retrieves the closest evidence with cosine similarity. A hybrid ranker combines that semantic score with category fit, specialty overlap, availability, coverage, quality, and distance.</p>
+      <p>The embedding model uses deterministic feature hashing rather than claiming to call a hosted neural model. It keeps requests in the browser and makes every result reproducible. The embedding adapter can later be replaced with a hosted model without changing retrieval or ranking.</p>
     </dialog>
 
     <script type="module" src="/src/app.js"></script>
