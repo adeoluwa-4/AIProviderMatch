@@ -19,7 +19,9 @@ const elements = {
   confidence: $("#confidenceLabel"),
   retrievalSummary: $("#retrievalSummary"),
   providers: $("#providerResults"),
-  safety: $("#safetyNotice")
+  safety: $("#safetyNotice"),
+  embeddingSummary: $("#embeddingSummary"),
+  context: $("#contextResults")
 };
 
 function escapeHtml(value) {
@@ -53,7 +55,7 @@ function updateCharacterCount() {
 }
 
 function setPipeline(stage, status) {
-  const order = ["understand", "retrieve", "rank", "explain"];
+  const order = ["parse", "embed", "retrieve", "rank", "generate"];
   order.forEach((name, index) => {
     const item = document.querySelector(`[data-stage="${name}"]`);
     const currentIndex = order.indexOf(stage);
@@ -71,10 +73,11 @@ async function animatePipeline() {
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const delay = reducedMotion ? 20 : 230;
   const stages = [
-    ["understand", "Reading the request", "Turning natural language into service requirements…"],
-    ["retrieve", "Retrieving candidates", "Filtering the local seed directory by trade and service area…"],
-    ["rank", "Scoring provider fit", "Comparing specialty, timing, location, quality, and distance…"],
-    ["explain", "Preparing explanations", "Selecting the strongest evidence for each recommendation…"]
+    ["parse", "Reading the request", "Turning natural language into structured service requirements…"],
+    ["embed", "Embedding the query", "Projecting terms and semantic aliases into a normalized 192d vector…"],
+    ["retrieve", "Searching the vector index", "Comparing the query against provider knowledge chunks with cosine similarity…"],
+    ["rank", "Scoring provider fit", "Combining semantic relevance, specialty, timing, coverage, quality, and distance…"],
+    ["generate", "Grounding explanations", "Citing the retrieved evidence behind each recommendation…"]
   ];
   for (const [stage, title, detail] of stages) {
     setPipeline(stage, "active");
@@ -82,7 +85,7 @@ async function animatePipeline() {
     elements.loadingDetail.textContent = detail;
     await wait(delay);
   }
-  setPipeline("explain", "complete");
+  setPipeline("generate", "complete");
 }
 
 function renderIntent(intent) {
@@ -104,6 +107,7 @@ function renderIntent(intent) {
 
 function signalRow(signals) {
   const values = [
+    ["Vector", signals.semantic],
     ["Trade", signals.category],
     ["Need", signals.specialty],
     ["Timing", signals.availability],
@@ -112,6 +116,20 @@ function signalRow(signals) {
   ];
   return values.map(([label, value]) => `
     <div class="signal"><span>${label}</span><div><i style="--signal:${Math.max(3, value)}%"></i></div><strong>${value}</strong></div>
+  `).join("");
+}
+
+function renderRetrieval(retrieval) {
+  elements.embeddingSummary.textContent = `${retrieval.dimensions}d · ${retrieval.indexSize} indexed · ${retrieval.searchSize} searched`;
+  elements.context.innerHTML = retrieval.chunks.slice(0, 3).map((chunk, index) => `
+    <article class="context-row">
+      <span class="context-rank">${String(index + 1).padStart(2, "0")}</span>
+      <div>
+        <div class="context-heading"><strong>${escapeHtml(chunk.providerName)}</strong><code>[${escapeHtml(chunk.id)}]</code></div>
+        <p>${escapeHtml(chunk.text)}</p>
+      </div>
+      <span class="similarity-score">${Math.round(chunk.similarity * 100)}%<small>cosine</small></span>
+    </article>
   `).join("");
 }
 
@@ -135,8 +153,9 @@ function renderProviders(ranked) {
         </div>
       </div>
       <div class="provider-evidence">
-        <p class="evidence-title">Why this match</p>
+        <p class="evidence-title">Grounded recommendation</p>
         <ul>${provider.reasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>
+        <p class="grounded-context">Evidence source <code>[${escapeHtml(provider.rag.id)}]</code></p>
         <details>
           <summary>View score signals</summary>
           <div class="signals">${signalRow(provider.signals)}</div>
@@ -162,8 +181,9 @@ async function runMatch(event) {
   await animatePipeline();
   const result = matchProviders(description, elements.zip.value, providers);
   renderIntent(result.intent);
+  renderRetrieval(result.retrieval);
   renderProviders(result.ranked);
-  elements.retrievalSummary.textContent = `${result.retrievedCount} eligible providers retrieved · top 3 shown`;
+  elements.retrievalSummary.textContent = `${result.retrieval.chunks.length} evidence chunks retrieved · ${result.retrievedCount} eligible providers · top 3 shown`;
   elements.loading.hidden = true;
   elements.results.hidden = false;
   elements.button.disabled = false;
@@ -176,6 +196,7 @@ function renderEvaluation() {
     ["Recall@3", metrics.recallAt3, "Relevant providers found in the first three results"],
     ["NDCG@3", metrics.ndcgAt3, "Ranking quality with earlier relevant results weighted higher"],
     ["MRR", metrics.mrr, "How early the first relevant provider appears"],
+    ["Context hit rate", metrics.contextHitRate, "A relevant provider appears in the retrieved evidence"],
     ["Intent accuracy", metrics.intentAccuracy, "Requests assigned to the expected service category"]
   ];
   $("#metricGrid").innerHTML = metricItems.map(([label, value, detail]) => `
@@ -185,6 +206,7 @@ function renderEvaluation() {
     <tr>
       <td><strong>${row.id.toUpperCase()}</strong><span>${escapeHtml(row.request)}</span></td>
       <td>${row.expectedCategory}</td>
+      <td>${escapeHtml(row.topEvidence)}</td>
       <td>${escapeHtml(row.topMatch)}</td>
       <td>${formatPercent(row.recall)}</td>
       <td>${formatPercent(row.ndcg)}</td>
